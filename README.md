@@ -24,7 +24,7 @@ Roblox Alt Manager - это вспомогательный инструмент 
 
 Это официальный и рабочий способ, который используют многие игроки.
 
---- Установка ---
+# --- Установка ---
 
 # Способ 1: EXE-файл (рекомендуется)
 
@@ -40,7 +40,11 @@ Roblox Alt Manager - это вспомогательный инструмент 
 
 
 # Клонируйте репозиторий
-git clone https://github.com/Aboba20025005/Alt-Manager-Roblox.git
+
+```git clone https://github.com/Aboba20025005/Alt-Manager-Roblox.git```
+
+
+
 ```
 # Перейдите в директорию проекта
 cd roblox-alt-manager
@@ -51,12 +55,19 @@ pip install -r requirements.txt
 # Запустите программу
 python main.py
 ```
+
+
+
 ## Системные требования
 
 - **ОС:** Windows 10 или 11
 - **Браузер:** Google Chrome или Yandex Browser
 
-# Важная информация
+
+
+
+
+##### Важная информация ######
 
 ## Ответственность
 
