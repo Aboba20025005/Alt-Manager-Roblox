@@ -1,0 +1,78 @@
+name: Build and Release Alt-Manager-Roblox
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.10 (more stable with PySide6)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6==6.6.0
+          pip install pyinstaller==5.13.0
+          # Если у вас есть requirements.txt, используйте его:
+          # pip install -r requirements.txt
+        shell: cmd
+
+      - name: Debug - List files
+        run: dir
+        shell: cmd
+
+      - name: Test Python script
+        run: |
+          python -c "import sys; print('Python version:', sys.version)"
+          python -c "import PySide6; print('PySide6 version:', PySide6.__version__)"
+          # Проверьте, что ваш основной файл существует и импорты работают
+          python -c "import sys; sys.path.insert(0, '.'); import main; print('Import successful')"
+        shell: cmd
+        continue-on-error: true
+
+      - name: Build EXE with detailed PyInstaller
+        run: |
+          pyinstaller ^
+            --noconfirm ^
+            --onefile ^
+            --windowed ^
+            --name "AltManagerRoblox" ^
+            --add-data "assets;assets" ^
+            --hidden-import PySide6 ^
+            --hidden-import PySide6.QtCore ^
+            --hidden-import PySide6.QtGui ^
+            --hidden-import PySide6.QtWidgets ^
+            --hidden-import json ^
+            --hidden-import os ^
+            --hidden-import sys ^
+            --clean ^
+            main.py
+        shell: cmd
+
+      - name: Verify EXE exists
+        run: |
+          if exist dist\AltManagerRoblox.exe (
+            echo "✅ EXE file created successfully"
+            dir dist
+          ) else (
+            echo "❌ EXE file not found"
+            exit 1
+          )
+        shell: cmd
+
+      - name: Upload Release Artifact
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/AltManagerRoblox.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
