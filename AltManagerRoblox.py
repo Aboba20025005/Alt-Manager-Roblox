@@ -1,320 +1,300 @@
-import sys
+import tkinter as tk
+from tkinter import messagebox
+import subprocess
 import os
 import json
-import random
 import locale
-import subprocess
+import time
+import sys
+import ctypes
 
-from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton,
-    QVBoxLayout, QListWidget, QLineEdit, QComboBox
-)
-from PySide6.QtCore import Qt, QTimer, QPoint
-from PySide6.QtGui import (
-    QPainter, QColor, QFont, QLinearGradient, QPalette
-)
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, "accounts.json")
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+ACCOUNTS_FILE = os.path.join(BASE_DIR, "accounts.json")
 PROFILES_DIR = os.path.join(BASE_DIR, "profiles")
 os.makedirs(PROFILES_DIR, exist_ok=True)
 
 ROBLOX_LOGIN = "https://www.roblox.com/login"
 ROBLOX_GAME = "https://www.roblox.com/games/1818/Classic-Crossroads"
 
-BROWSERS = {
-    "chrome":  ("Google Chrome",  'start chrome --user-data-dir="{profile}" {url}'),
-    "edge":    ("Microsoft Edge", 'start msedge --user-data-dir="{profile}" {url}'),
-    "firefox": ("Mozilla Firefox",'start firefox -profile "{profile}" {url}'),
-    "yandex":  ("Yandex Browser", 'start browser --user-data-dir="{profile}" {url}')
-}
-
-LANG = {
-    "en": {
-        "title": "Alt Manager v2",
-        "nickname": "Account nickname",
-        "add": "Add account",
-        "login": "Login",
-        "play": "Play",
-        "remove": "Remove",
-        "browser": "Browser",
-        "agree": "I Agree",
-        "disc_title": "⚠️ Disclaimer",
-        "disc_text": (
-            "Alt Manager v2 is a helper tool.\n\n"
-            "The author does NOT bypass Roblox systems.\n"
-            "The author is NOT responsible for bans,\n"
-            "account losses or any consequences.\n\n"
-            "All responsibility lies on the user."
-        )
-    },
-    "ru": {
-        "title": "Alt Manager v2",
-        "nickname": "Ник аккаунта",
-        "add": "Добавить аккаунт",
-        "login": "Войти",
-        "play": "Играть",
-        "remove": "Удалить",
-        "browser": "Браузер",
-        "agree": "Принимаю",
-        "disc_title": "⚠️ Дисклеймер",
-        "disc_text": (
-            "Alt Manager v2 — вспомогательный инструмент.\n\n"
-            "Автор НЕ обходит системы Roblox.\n"
-            "Автор НЕ несёт ответственности за блокировки,\n"
-            "потери аккаунтов или последствия.\n\n"
-            "Вся ответственность лежит на пользователе."
-        )
-    },
-    "ua": {
-        "title": "Alt Manager v2",
-        "nickname": "Нік акаунта",
-        "add": "Додати акаунт",
-        "login": "Увійти",
-        "play": "Грати",
-        "remove": "Видалити",
-        "browser": "Браузер",
-        "agree": "Погоджуюсь",
-        "disc_title": "⚠️ Дисклеймер",
-        "disc_text": (
-            "Alt Manager v2 — допоміжний інструмент.\n\n"
-            "Автор НЕ обходить системи Roblox.\n"
-            "Автор НЕ несе відповідальності за блокування,\n"
-            "втрати акаунтів або наслідки.\n\n"
-            "Уся відповідальність лежить на користувачі."
-        )
-    }
-}
-
-def load_json(path, default=None):
+def load_json(path, default):
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            if isinstance(data, dict) and "accounts" in data:
+                return data["accounts"]
+            return data
     except:
-        return default if default is not None else {}
+        return default
 
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+        if path == ACCOUNTS_FILE:
+            json.dump({"accounts": data}, f, indent=4, ensure_ascii=False)
+        else:
+            json.dump(data, f, indent=4, ensure_ascii=False)
 
-def detect_language():
-    loc = locale.getdefaultlocale()[0] or ""
-    if loc.startswith("ru"):
-        return "ru"
-    if loc.startswith("uk"):
-        return "ua"
-    return "en"
+LANG = {
+    "en": {
+        "title": "Alt Manager",
+        "subtitle": "Accounts • Browsers • Languages",
+        "add": "Add account",
+        "login": "Login",
+        "play": "Play",
+        "language": "Language",
+        "browser": "Browser",
+        "exists": "Account already exists",
+        "no_browser": "Browser not found"
+    },
+    "ru": {
+        "title": "Alt Manager",
+        "subtitle": "Аккаунты • Браузеры • Языки",
+        "add": "Добавить аккаунт",
+        "login": "Войти",
+        "play": "Играть",
+        "language": "Язык",
+        "browser": "Браузер",
+        "exists": "Аккаунт уже существует",
+        "no_browser": "Браузер не найден"
+    },
+    "ua": {
+        "title": "Alt Manager",
+        "subtitle": "Акаунти • Браузери • Мови",
+        "add": "Додати акаунт",
+        "login": "Увійти",
+        "play": "Грати",
+        "language": "Мова",
+        "browser": "Браузер",
+        "exists": "Акаунт вже існує",
+        "no_browser": "Браузер не знайдено"
+    }
+}
 
-class Star:
-    def __init__(self, w, h):
-        self.w = w
-        self.h = h
-        self.x = random.uniform(0, w)
-        self.y = random.uniform(0, h)
-        self.speed = random.uniform(0.5, 1.5)
-        self.size = random.choice([1, 2, 3])
+def detect_lang():
+    if sys.platform != 'win32':
+        lang = os.environ.get('LANG', '').split('_')[0].split('-')[0].lower()
+        if lang.startswith('ru'):
+            return 'ru'
+        if lang.startswith('uk'):
+            return 'ua'
+        return 'en'
 
-    def update(self):
-        self.y += self.speed
-        if self.y > self.h:
-            self.y = 0
-            self.x = random.uniform(0, self.w)
+    try:
+        lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+        if lang_id == 0x0419:
+            return 'ru'
+        if lang_id == 0x0422:
+            return 'ua'
+        return 'en'
+    except:
+        return 'en'
 
-class CosmosWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.stars = [Star(1200, 800) for _ in range(250)]
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update)
-        self.timer.start(16)
+def find_browser(paths):
+    for p in paths:
+        if p and os.path.exists(p):
+            return p
+    return None
 
-    def paintEvent(self, e):
-        p = QPainter(self)
-        g = QLinearGradient(0, 0, 0, self.height())
-        g.setColorAt(0, QColor(30, 60, 140))
-        g.setColorAt(1, QColor(120, 50, 170))
-        p.fillRect(self.rect(), g)
-        p.setBrush(QColor(240,240,255))
-        p.setPen(Qt.NoPen)
-        for s in self.stars:
-            s.update()
-            p.drawEllipse(int(s.x), int(s.y), s.size, s.size)
+BROWSERS = {
+    "Chrome": find_browser([
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe")
+    ]),
+    "Edge": find_browser([
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Edge", "Application", "msedge.exe")
+    ]),
+    "Yandex": find_browser([
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Yandex", "YandexBrowser", "Application", "browser.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "Yandex", "YandexBrowser", "Application", "browser.exe")
+    ]),
+    "Firefox": find_browser([
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "Mozilla Firefox", "firefox.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Mozilla Firefox", "firefox.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Mozilla Firefox", "firefox.exe")
+    ])
+}
 
-class Disclaimer(QWidget):
-    def __init__(self, lang):
-        super().__init__()
-        t = LANG[lang]
-        self.accepted = False
+AVAILABLE_BROWSERS = [b for b, p in BROWSERS.items() if p is not None]
+if not AVAILABLE_BROWSERS:
+    AVAILABLE_BROWSERS = ["Chrome", "Edge", "Yandex", "Firefox"]
 
-        self.setFixedSize(520, 360)
-        self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+config = load_json(CONFIG_FILE, {})
+accounts_data = load_json(ACCOUNTS_FILE, [])
+if isinstance(accounts_data, dict) and "accounts" in accounts_data:
+    accounts = accounts_data["accounts"]
+else:
+    accounts = accounts_data if isinstance(accounts_data, list) else []
 
-        card = QWidget(self)
-        card.setGeometry(0,0,520,360)
-        card.setStyleSheet("background:rgba(15,23,42,245);border-radius:18px;")
+current_language = config.get("language", detect_lang())
+current_browser = config.get("browser", AVAILABLE_BROWSERS[0] if AVAILABLE_BROWSERS else "Chrome")
+T = LANG.get(current_language, LANG["en"])
 
-        lay = QVBoxLayout(card)
+BG_MAIN = "#0a0e14"
+BG_CARD = "#111827"
+BG_INPUT = "#020617"
+BG_BTN = "#1f2937"
+BG_HOVER = "#3b82f6"
+FG = "#e5e7eb"
+FG_DIM = "#94a3b8"
 
-        title = QLabel(t["disc_title"])
-        title.setFont(QFont("Segoe UI Semibold", 22))
-        title.setStyleSheet("color:#FACC15;")
-        title.setAlignment(Qt.AlignCenter)
-        lay.addWidget(title)
+FONT_TITLE = ("Segoe UI Semibold", 24)
+FONT_TEXT = ("Segoe UI", 11)
+FONT_BTN = ("Segoe UI Semibold", 11)
 
-        text = QLabel(t["disc_text"])
-        text.setWordWrap(True)
-        text.setAlignment(Qt.AlignCenter)
-        text.setStyleSheet("color:#E5E7EB;font-size:13px;")
-        lay.addWidget(text)
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except:
+    pass
 
-        btn = QPushButton(t["agree"])
-        btn.setEnabled(False)
-        btn.clicked.connect(self.accept)
-        lay.addWidget(btn, alignment=Qt.AlignCenter)
+root = tk.Tk()
+root.geometry("840x580")
+root.configure(bg=BG_MAIN)
+root.resizable(False, False)
+root.attributes("-alpha", 0.0)
 
-        QTimer.singleShot(2500, lambda: btn.setEnabled(True))
+def fade_in():
+    for i in range(0, 101, 2):
+        root.attributes("-alpha", i / 100)
+        root.update()
+        time.sleep(0.006)
 
-    def accept(self):
-        self.accepted = True
-        self.close()
+root.after(100, fade_in)
 
-class AltManager(QWidget):
-    def __init__(self, lang):
-        super().__init__()
-        self.lang = lang
-        self.browser = load_json(SETTINGS_FILE).get("browser","chrome")
-        self.t = LANG[self.lang]
-        self.accounts = load_json(DATA_FILE, [])
+card = tk.Frame(root, bg=BG_CARD)
+card.place(relx=0.5, rely=0.5, anchor="center", width=780, height=520)
 
-        self.setFixedSize(1000,700)
-        self.setWindowTitle(self.t["title"])
+title = tk.Label(card, font=FONT_TITLE, fg=FG, bg=BG_CARD)
+subtitle = tk.Label(card, fg=FG_DIM, bg=BG_CARD, font=("Segoe UI", 10))
 
-        self.bg = CosmosWidget(self)
-        self.bg.resize(self.size())
+title.pack(pady=(28, 6))
+subtitle.pack()
 
-        self.init_ui()
+settings = tk.Frame(card, bg=BG_CARD)
+settings.pack(pady=16)
 
-    def init_ui(self):
-        self.title = QLabel(self.t["title"], self)
-        self.title.setFont(QFont("Segoe UI Semibold", 30))
-        self.title.setStyleSheet("color:white;")
-        self.title.move(350,40)
+lang_var = tk.StringVar(value=current_language)
+browser_var = tk.StringVar(value=current_browser)
 
-        self.card = QWidget(self)
-        self.card.setGeometry(250,120,500,520)
-        self.card.setStyleSheet("background:rgba(255,255,255,0.15);border-radius:18px;")
-        lay = QVBoxLayout(self.card)
+def change_language(*_):
+    global current_language, T
+    current_language = lang_var.get()
+    T = LANG.get(current_language, LANG["en"])
+    config["language"] = current_language
+    save_json(CONFIG_FILE, config)
+    refresh_ui()
 
-        self.lang_box = QComboBox()
-        self.lang_box.addItems(["English","Русский","Українська"])
-        self.lang_box.setCurrentIndex(["en","ru","ua"].index(self.lang))
-        self.lang_box.currentIndexChanged.connect(self.change_language)
-        lay.addWidget(self.lang_box)
+def change_browser(*_):
+    global current_browser
+    current_browser = browser_var.get()
+    config["browser"] = current_browser
+    save_json(CONFIG_FILE, config)
 
-        self.browser_label = QLabel(f"🌐 {self.t['browser']}")
-        self.browser_label.setStyleSheet("color:white;font-weight:600;")
-        lay.addWidget(self.browser_label)
+def dropdown(parent, label, var, values, command):
+    f = tk.Frame(parent, bg=BG_CARD)
+    tk.Label(f, text=label, fg=FG_DIM, bg=BG_CARD).pack(side="left", padx=6)
+    m = tk.OptionMenu(f, var, *values, command=lambda _: command())
+    m.config(bg=BG_BTN, fg=FG, relief="flat", highlightthickness=0)
+    m["menu"].config(bg=BG_BTN, fg=FG)
+    f.pack(side="left", padx=12)
 
-        self.browser_box = QComboBox()
-        self.browser_box.addItems([v[0] for v in BROWSERS.values()])
-        self.browser_box.setCurrentIndex(list(BROWSERS.keys()).index(self.browser))
-        self.browser_box.currentIndexChanged.connect(self.change_browser)
-        lay.addWidget(self.browser_box)
+dropdown(settings, T["language"], lang_var, list(LANG.keys()), change_language)
+dropdown(settings, T["browser"], browser_var, AVAILABLE_BROWSERS, change_browser)
 
-        self.input = QLineEdit()
-        lay.addWidget(self.input)
+entry = tk.Entry(card, font=FONT_TEXT, bg=BG_INPUT, fg=FG,
+                 insertbackground=FG, relief="flat")
+entry.pack(fill="x", padx=180, pady=14, ipady=9)
 
-        self.btn_add = QPushButton()
-        self.btn_add.clicked.connect(self.add_account)
-        lay.addWidget(self.btn_add)
+def animated_button(parent, text, command):
+    btn = tk.Label(parent, text=text, bg=BG_BTN, fg=FG,
+                   font=FONT_BTN, padx=30, pady=13, cursor="hand2")
 
-        self.list = QListWidget()
-        self.list.addItems(self.accounts)
-        lay.addWidget(self.list)
+    def hover_on(e): btn.config(bg=BG_HOVER)
+    def hover_off(e): btn.config(bg=BG_BTN)
+    def click(e):
+        btn.config(bg="#1e40af")
+        parent.after(90, lambda: btn.config(bg=BG_HOVER))
+        command()
 
-        self.btn_login = QPushButton()
-        self.btn_login.clicked.connect(self.login)
-        lay.addWidget(self.btn_login)
+    btn.bind("<Enter>", hover_on)
+    btn.bind("<Leave>", hover_off)
+    btn.bind("<Button-1>", click)
+    return btn
 
-        self.btn_play = QPushButton()
-        self.btn_play.clicked.connect(self.play)
-        lay.addWidget(self.btn_play)
+btns = tk.Frame(card, bg=BG_CARD)
+btns.pack(pady=20)
 
-        self.btn_remove = QPushButton()
-        self.btn_remove.clicked.connect(self.remove)
-        lay.addWidget(self.btn_remove)
+btn_add = animated_button(btns, T["add"], lambda: add_account())
+btn_login = animated_button(btns, T["login"], lambda: open_url(ROBLOX_LOGIN))
+btn_play = animated_button(btns, T["play"], lambda: open_url(ROBLOX_GAME))
 
-        self.refresh_ui()
+btn_add.pack(side="left", padx=14)
+btn_login.pack(side="left", padx=14)
+btn_play.pack(side="left", padx=14)
 
-    def refresh_ui(self):
-        self.t = LANG[self.lang]
-        self.setWindowTitle(self.t["title"])
-        self.title.setText(self.t["title"])
-        self.input.setPlaceholderText(self.t["nickname"])
-        self.btn_add.setText(self.t["add"])
-        self.btn_login.setText(self.t["login"])
-        self.btn_play.setText(self.t["play"])
-        self.btn_remove.setText(self.t["remove"])
-        self.browser_label.setText(f"🌐 {self.t['browser']}")
+listbox = tk.Listbox(
+    card, font=FONT_TEXT, bg=BG_INPUT, fg=FG,
+    selectbackground=BG_HOVER, relief="flat", height=9
+)
+listbox.pack(fill="x", padx=200, pady=18)
 
-    def change_language(self, i):
-        self.lang = ["en","ru","ua"][i]
-        save_json(SETTINGS_FILE, {"language":self.lang,"browser":self.browser})
-        self.refresh_ui()
+def refresh_list(animated=True):
+    listbox.delete(0, "end")
+    if not animated:
+        for a in accounts:
+            listbox.insert("end", a)
+        return
 
-    def change_browser(self, i):
-        self.browser = list(BROWSERS.keys())[i]
-        save_json(SETTINGS_FILE, {"language":self.lang,"browser":self.browser})
+    def insert_step(i=0):
+        if i < len(accounts):
+            listbox.insert("end", accounts[i])
+            root.after(60, lambda: insert_step(i + 1))
+    insert_step()
 
-    def open_url(self, url):
-        item = self.list.currentItem()
-        if not item: return
-        profile = os.path.join(PROFILES_DIR, item.text())
-        os.makedirs(profile, exist_ok=True)
-        command = BROWSERS[self.browser][1].format(profile=profile, url=url)
-        subprocess.Popen(command, shell=True)
+def add_account():
+    name = entry.get().strip()
+    if not name:
+        return
+    if name in accounts:
+        messagebox.showerror(T["title"], T["exists"])
+        return
+    accounts.append(name)
+    save_json(ACCOUNTS_FILE, accounts)
+    entry.delete(0, "end")
+    refresh_list()
 
-    def login(self): self.open_url(ROBLOX_LOGIN)
-    def play(self): self.open_url(ROBLOX_GAME)
+def open_url(url):
+    sel = listbox.curselection()
+    if not sel:
+        return
+    browser_path = BROWSERS.get(current_browser)
+    if not browser_path or not os.path.exists(browser_path):
+        messagebox.showerror(T["title"], T["no_browser"])
+        return
+    profile = os.path.join(PROFILES_DIR, listbox.get(sel[0]))
+    os.makedirs(profile, exist_ok=True)
+    try:
+        if current_browser == "Firefox":
+            subprocess.Popen([browser_path, "-profile", profile, "-new-window", url])
+        else:
+            subprocess.Popen([browser_path, f"--user-data-dir={profile}", "--new-window", url])
+    except Exception as e:
+        messagebox.showerror(T["title"], f"Error launching browser: {str(e)}")
 
-    def add_account(self):
-        name = self.input.text().strip()
-        if name and name not in self.accounts:
-            self.accounts.append(name)
-            save_json(DATA_FILE, self.accounts)
-            self.list.addItem(name)
-            self.input.clear()
+def refresh_ui():
+    root.title(T["title"])
+    title.config(text=T["title"])
+    subtitle.config(text=T["subtitle"])
+    btn_add.config(text=T["add"])
+    btn_login.config(text=T["login"])
+    btn_play.config(text=T["play"])
 
-    def remove(self):
-        item = self.list.currentItem()
-        if item:
-            self.accounts.remove(item.text())
-            save_json(DATA_FILE, self.accounts)
-            self.list.takeItem(self.list.row(item))
-
-if __name__ == "__main__":
-    settings = load_json(SETTINGS_FILE)
-    lang = settings.get("language", detect_language())
-
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-
-    palette = QPalette()
-    palette.setColor(QPalette.Window, QColor(15,23,42))
-    palette.setColor(QPalette.Base, QColor(30,41,59))
-    palette.setColor(QPalette.Text, QColor(248,250,252))
-    palette.setColor(QPalette.ButtonText, QColor(248,250,252))
-    app.setPalette(palette)
-
-    disc = Disclaimer(lang)
-    disc.show()
-    app.exec()
-
-    if not disc.accepted:
-        sys.exit(0)
-
-    window = AltManager(lang)
-    window.show()
-    sys.exit(app.exec())
+refresh_ui()
+refresh_list(animated=True)
+root.mainloop()
