@@ -13,20 +13,36 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.10
+      - name: Setup Python 3.13.1
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.13.1"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PySide6==6.6.0
-          pip install pyinstaller==5.13.0
+          pip install PySide6==6.8.0
+          pip install pyinstaller==6.10.0
         shell: cmd
 
-      - name: Debug - List files
-        run: dir
+      - name: Verify project structure
+        run: |
+          echo "=== Checking files ==="
+          dir /s
+          echo "=== Checking assets folder ==="
+          if exist assets (
+            dir assets
+          ) else (
+            echo "❌ assets folder not found"
+            exit 1
+          )
+          echo "=== Checking icon.ico ==="
+          if exist assets\icon.ico (
+            echo "✅ icon.ico found"
+          ) else (
+            echo "❌ icon.ico not found in assets folder"
+            exit 1
+          )
         shell: cmd
 
       - name: Build EXE with PyInstaller
@@ -36,12 +52,22 @@ jobs:
             --onefile ^
             --windowed ^
             --name "AltManagerRoblox" ^
+            --icon "assets\\icon.ico" ^
+            --add-data "assets;assets" ^
             --hidden-import PySide6.QtCore ^
             --hidden-import PySide6.QtGui ^
             --hidden-import PySide6.QtWidgets ^
+            --hidden-import PySide6.QtNetwork ^
+            --hidden-import json ^
+            --hidden-import os ^
+            --hidden-import sys ^
+            --hidden-import locale ^
+            --hidden-import subprocess ^
+            --hidden-import ctypes ^
+            --hidden-import time ^
+            --hidden-import random ^
             --clean ^
-            --add-data "icon.ico;." ^
-            main.py
+            "AltManagerRoblox.py"
         shell: cmd
 
       - name: Verify EXE exists
@@ -49,8 +75,12 @@ jobs:
           if exist dist\AltManagerRoblox.exe (
             echo "✅ EXE built successfully"
             dir dist
+            echo "File size: "
+            powershell -Command "(Get-Item dist\AltManagerRoblox.exe).Length / 1MB"
           ) else (
             echo "❌ EXE not found"
+            echo "=== Build directory contents ==="
+            dir /s
             exit 1
           )
         shell: cmd
