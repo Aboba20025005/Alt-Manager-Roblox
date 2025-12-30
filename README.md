@@ -28,7 +28,7 @@ Roblox Alt Manager - это вспомогательный инструмент 
 
 # Способ 1: EXE-файл (рекомендуется)
 
-1. Скачайте файл `AltManager.exe` из раздела [Releases]([https://github.com/username/repo/releases](https://github.com/Aboba20025005/Alt-Manager-Roblox/releases))
+1. Скачайте файл `AltManager.exe` из раздела [Releases](https://github.com/Aboba20025005/Alt-Manager-Roblox/releases)
 2. Распакуйте архив, если файл находится в нём
 3. Запустите `AltManager.exe`
 
